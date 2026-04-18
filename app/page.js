@@ -25,36 +25,49 @@ function AuthForm({ isDark }) {
     setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
   };
 
-  const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    console.log("🚀 Login attempt started for:", userId);
+
     try {
-      // 🔥 CORS FIX: No custom headers - Google Apps Script ke liye safest
-      const response = await fetch(APPS_SCRIPT_URL, {
+      // 🔥 RAW FETCH - No headers, no options, just pure POST
+      const response = await fetch("https://script.google.com/macros/s/AKfycbxbQBH0UgP-thwCzJ1MRR7yeaTkkv9gKhxoJkRRurjz5fbUtQTe85wNwNBfT4j_xAgp/exec", {
         method: "POST",
         body: JSON.stringify({ 
           action: isLogin ? "login" : "register", 
-          userId, 
-          password,
+          userId: userId, 
+          password: password,
           dob: dob || ""
         }),
       });
 
-      const data = await response.json();
+      console.log("📡 Response Status:", response.status);
+      
+      // Response ko text mein pehle read karo taaki error clear dikhe
+      const text = await response.text();
+      console.log("📄 Raw Response:", text);
+      
+      // Ab JSON parse karo
+      const data = JSON.parse(text);
 
       if (data.success) {
+        console.log("✅ Backend Success:", data.message);
+        showToast(data.message, "success");
+        
         if (isLogin) {
-          showToast("✅ Login successful!");
+          // Local state update karo
           await login(userId, password); 
         } else {
-          showToast("🎉 Account created! Please login.");
           setIsLogin(true);
         }
       } else {
-        throw new Error(data.error || "Operation failed");
+        console.error("❌ Backend Error:", data.message);
+        showToast(data.message || "Failed", "error");
       }
-    } catch (err) {
-      showToast(err.message || "❌ Connection failed", "error");
+    } catch (error) {
+      console.error("💥 Network Error (CORS/URL Issue):", error);
+      showToast("Connection Failed: Check Console (F12)", "error");
     } finally {
       setLoading(false);
     }
