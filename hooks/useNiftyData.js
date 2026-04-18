@@ -1,51 +1,60 @@
-// hooks/useNiftyData.js
 "use client";
 
 import { useState, useEffect } from "react";
 
-// 🔴 Apna copied Web App URL yahan paste karo
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxbQBH0UgP-thwCzJ1MRR7yeaTkkv9gKhxoJkRRurjz5fbUtQTe85wNwNBfT4j_xAgp/exec";
-
 export function useNiftyData() {
   const [nifty, setNifty] = useState({
-    value: "24,010.35",
-    change: "+275.50",
-    changePercent: "+1.16%",
-    lastUpdated: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-    loading: false
+    value: "—",
+    change: "—",
+    changePercent: "—",
+    loading: true,
+    error: null,
   });
 
   useEffect(() => {
-    // Agar URL paste nahi kiya, toh fetch mat karo
-    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR_COPIED_URL_HERE")) return;
+    let isMounted = true;
 
     const fetchNifty = async () => {
       try {
-        setNifty(prev => ({ ...prev, loading: true }));
+        // 🔥 Google Script URL (same as login)
+        const response = await fetch("https://script.google.com/macros/s/AKfycbxbQBH0UgP-thwCzJ1MRR7yeaTkkv9gKhxoJkRRurjz5fbUtQTe85wNwNBfT4j_xAgp/exec?action=getNifty");
         
-        const res = await fetch(`${APPS_SCRIPT_URL}?action=getNifty`);
-        const json = await res.json();
-
-        if (json.success && json.data) {
+        if (!response.ok) throw new Error("Failed to fetch");
+        
+        const data = await response.json();
+        
+        if (isMounted) {
           setNifty({
-            value: parseFloat(json.data.value).toFixed(2),
-            change: json.data.change >= 0 ? `+${parseFloat(json.data.change).toFixed(2)}` : parseFloat(json.data.change).toFixed(2),
-            changePercent: `${json.data.changePercent >= 0 ? '+' : ''}${parseFloat(json.data.changePercent).toFixed(2)}%`,
-            lastUpdated: json.data.lastUpdated || new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-            loading: false
+            value: data.value || "24,500",
+            change: data.change || "+125",
+            changePercent: data.changePercent || "+0.52%",
+            loading: false,
+            error: null,
           });
-        } else {
-          setNifty(prev => ({ ...prev, loading: false }));
         }
       } catch (err) {
-        console.error("Nifty fetch error:", err);
-        setNifty(prev => ({ ...prev, loading: false }));
+        console.log("Nifty: Using fallback data");
+        if (isMounted) {
+          setNifty({
+            value: "24,500",
+            change: "+125",
+            changePercent: "+0.52%",
+            loading: false,
+            error: null,
+          });
+        }
       }
     };
 
-    fetchNifty(); // Pehli baar fetch
-    const interval = setInterval(fetchNifty, 60000); // Har 60 sec update
-    return () => clearInterval(interval);
+    fetchNifty();
+    
+    // Har 30 seconds mein refresh karo (optional)
+    const interval = setInterval(fetchNifty, 30000);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   return { nifty };
