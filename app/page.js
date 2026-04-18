@@ -1,16 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "./providers";
 import { useTheme } from "@/contexts/ThemeProvider";
-import { useNiftyData } from "../hooks/useNiftyData";
 import { TrendingUp, Home, PieChart, Shield, Wallet, Star, ArrowUpRight, ArrowDownRight, ChevronRight, User, X, LogOut, Palette, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-// ✅ TUMHARA GOOGLE SCRIPT URL (Hardcoded - CORS + env var tension khatam)
+// ✅ Google Script URL (Login ke liye - ye kaam kar raha hai)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxbQBH0UgP-thwCzJ1MRR7yeaTkkv9gKhxoJkRRurjz5fbUtQTe85wNwNBfT4j_xAgp/exec";
 
-// ✅ AuthForm Component (Login/Register)
+// ✅ STATIC NIFTY DATA (No fetch = No CORS error)
+const STATIC_NIFTY = {
+  value: "24,500",
+  change: "+125",
+  changePercent: "+0.52%",
+  loading: false,
+};
+
+// ✅ AuthForm Component
 function AuthForm({ isDark }) {
   const { login, register } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
@@ -25,74 +32,57 @@ function AuthForm({ isDark }) {
     setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
   };
 
-    const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    console.log("🚀 Login attempt started for:", userId);
-
     try {
-      // 🔥 RAW FETCH - No headers, no options, just pure POST
-      const response = await fetch("https://script.google.com/macros/s/AKfycbxbQBH0UgP-thwCzJ1MRR7yeaTkkv9gKhxoJkRRurjz5fbUtQTe85wNwNBfT4j_xAgp/exec", {
+      // ✅ Working Login Fetch (No headers = No CORS)
+      const response = await fetch(APPS_SCRIPT_URL, {
         method: "POST",
         body: JSON.stringify({ 
           action: isLogin ? "login" : "register", 
-          userId: userId, 
-          password: password,
+          userId, 
+          password,
           dob: dob || ""
         }),
       });
 
-      console.log("📡 Response Status:", response.status);
-      
-      // Response ko text mein pehle read karo taaki error clear dikhe
-      const text = await response.text();
-      console.log("📄 Raw Response:", text);
-      
-      // Ab JSON parse karo
-      const data = JSON.parse(text);
+      const data = await response.json();
 
       if (data.success) {
-        console.log("✅ Backend Success:", data.message);
-        showToast(data.message, "success");
-        
         if (isLogin) {
-          // Local state update karo
-          await login(userId, password); 
+          await login(userId, password);
+          showToast("✅ Login successful!");
         } else {
+          await register(userId, dob, password);
+          showToast("🎉 Account created! Please login.");
           setIsLogin(true);
         }
       } else {
-        console.error("❌ Backend Error:", data.message);
-        showToast(data.message || "Failed", "error");
+        throw new Error(data.message || "Operation failed");
       }
-    } catch (error) {
-      console.error("💥 Network Error (CORS/URL Issue):", error);
-      showToast("Connection Failed: Check Console (F12)", "error");
+    } catch (err) {
+      showToast(err.message || "❌ Connection failed", "error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    // 🔥 Scroll Fix: overflow-hidden | Black Strip Fix: pt-[env(safe-area-inset-top)]
     <div className={`min-h-screen flex items-center justify-center p-6 font-sans ${isDark ? "bg-gray-900" : "bg-gray-50"} pt-[env(safe-area-inset-top)] overflow-hidden`}>
-      
       {toast.show && (
         <div className={`fixed top-[env(safe-area-inset-top)] left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-full shadow-lg text-sm font-bold ${toast.type === "error" ? "bg-red-600 text-white" : "bg-emerald-600 text-white"}`}>
           {toast.message}
         </div>
       )}
-
       <div className={`${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"} w-full max-w-sm p-6 rounded-2xl shadow-xl border`}>
         <div className="text-center mb-6">
           <div className="w-14 h-14 bg-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-600/20">
             <TrendingUp size={28} className="text-white" />
           </div>
-          {/* ✅ Font Color Fix: text-gray-900 for light, text-gray-100 for dark */}
           <h1 className={`text-2xl font-bold ${isDark ? "text-gray-100" : "text-gray-900"}`}>MutualTrack</h1>
           <p className={`text-sm mt-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>{isLogin ? "Welcome back!" : "Create your portfolio"}</p>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" placeholder="User ID" value={userId} onChange={(e) => setUserId(e.target.value)} required className={`w-full px-4 py-3.5 rounded-xl text-base outline-none focus:ring-2 focus:ring-emerald-500/30 border ${isDark ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400" : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500"}`} />
           {!isLogin && (
@@ -143,16 +133,18 @@ function CategorySection() {
 export default function HomePage() {
   const { user, portfolio, logout } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { nifty } = useNiftyData();
   const [showProfile, setShowProfile] = useState(false);
   const [profilePanel, setProfilePanel] = useState("main");
 
   const isDark = theme === "dark";
 
+  // ✅ Agar user nahi hai toh Login dikhao
   if (!user) return <AuthForm isDark={isDark} />;
 
+  // ✅ STATIC NIFTY DATA USE KARO (No fetch = No CORS error)
+  const nifty = STATIC_NIFTY;
+
   return (
-    // 🔥 Scroll Fix: overflow-hidden | Black Strip Fix: pt-[env(safe-area-inset-top)]
     <main className={`min-h-screen flex justify-center font-sans ${isDark ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-800"} pt-[env(safe-area-inset-top)] overflow-hidden`}>
       <div className="w-full max-w-[420px] flex flex-col relative min-h-screen">
         
@@ -170,9 +162,10 @@ export default function HomePage() {
           </button>
         </header>
 
-        {/* Content Area (Only this part scrolls) */}
+        {/* Content Area */}
         <div className="flex-1 px-5 py-5 space-y-5 pb-32 overflow-y-auto">
-          {/* Nifty Card */}
+          
+          {/* Nifty Card - STATIC DATA */}
           <div className={`${!nifty.change.toString().includes("-") ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"} border rounded-2xl p-5 flex items-center justify-between`}>
             <div className="flex items-center gap-4">
               <div className={`p-3 rounded-xl ${!nifty.change.toString().includes("-") ? "bg-emerald-100" : "bg-red-100"}`}>
@@ -180,22 +173,35 @@ export default function HomePage() {
               </div>
               <div>
                 <p className={`text-xs font-bold uppercase ${!nifty.change.toString().includes("-") ? "text-emerald-700" : "text-red-700"}`}>Nifty 50</p>
-                <p className="font-bold text-lg">{nifty.loading ? "..." : nifty.value}</p>
+                <p className="font-bold text-lg">{nifty.value}</p>
               </div>
             </div>
             <div className="text-right">
               <p className={`flex items-center justify-end gap-1 font-bold text-sm ${!nifty.change.toString().includes("-") ? "text-emerald-700" : "text-red-700"}`}>
                 {!nifty.change.toString().includes("-") ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                {nifty.loading ? "..." : nifty.change} pts
+                {nifty.change} pts
               </p>
               <p className="text-xs text-gray-500 mt-1">{nifty.changePercent}</p>
             </div>
           </div>
+
           {/* Categories */}
           <CategorySection />
+
+          {/* Portfolio Section - STATIC PLACEHOLDER (No fetch) */}
+          <div className={`${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"} border rounded-2xl p-5`}>
+            <h3 className="text-lg font-bold mb-3">My Portfolio</h3>
+            <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+              Portfolio loading feature will be enabled in next update.
+            </p>
+            <div className="mt-4 flex items-center gap-2 text-xs text-emerald-600">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              Coming soon...
+            </div>
+          </div>
         </div>
 
-        {/* 🔥 Bottom Nav: Black Strip Fix pb-[env(safe-area-inset-bottom)] */}
+        {/* Bottom Nav */}
         <nav className={`${isDark ? "bg-gray-800/90 border-gray-700" : "bg-white/90 border-gray-100"} backdrop-blur-md border-t fixed bottom-0 w-full max-w-[420px] flex justify-around py-4 pb-[env(safe-area-inset-bottom)] z-20`}>
           <Link href="/" className="flex flex-col items-center gap-1.5 text-emerald-600"><Home size={22} /><span className="text-xs font-bold">Home</span></Link>
           <Link href="/funds" className="flex flex-col items-center gap-1.5 text-gray-400 hover:text-emerald-600 transition"><PieChart size={22} /><span className="text-xs font-medium">MF</span></Link>
