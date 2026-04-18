@@ -2,7 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Force dark mode base styles agar JS load hone mein time le */
-body {
-  @apply bg-gray-50 text-gray-900;
+/* Optional: Base styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
