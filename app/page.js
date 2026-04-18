@@ -41,7 +41,15 @@ function AuthForm({ isDark }) {
         }),
       });
 
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+
       const data = await response.json();
+
+      if (!data) {
+        throw new Error("Empty response from server");
+      }
 
       if (data.success) {
         if (isLogin) {
@@ -55,6 +63,7 @@ function AuthForm({ isDark }) {
         throw new Error(data.error || "Operation failed");
       }
     } catch (err) {
+      console.error("Auth error:", err);
       showToast(err.message || "❌ Connection failed", "error");
     } finally {
       setLoading(false);
