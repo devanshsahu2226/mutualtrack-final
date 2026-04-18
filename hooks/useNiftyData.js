@@ -8,7 +8,6 @@ export function useNiftyData() {
     change: "—",
     changePercent: "—",
     loading: true,
-    error: null,
   });
 
   useEffect(() => {
@@ -16,10 +15,12 @@ export function useNiftyData() {
 
     const fetchNifty = async () => {
       try {
-        // 🔥 Google Script URL (same as login)
-        const response = await fetch("https://script.google.com/macros/s/AKfycbxbQBH0UgP-thwCzJ1MRR7yeaTkkv9gKhxoJkRRurjz5fbUtQTe85wNwNBfT4j_xAgp/exec?action=getNifty");
+        // 🔥 CORS-SAFE: No headers, simple GET with query param
+        const url = "https://script.google.com/macros/s/AKfycbxbQBH0UgP-thwCzJ1MRR7yeaTkkv9gKhxoJkRRurjz5fbUtQTe85wNwNBfT4j_xAgp/exec?action=getNifty";
         
-        if (!response.ok) throw new Error("Failed to fetch");
+        const response = await fetch(url); // ✅ No options object = No preflight = No CORS error
+        
+        if (!response.ok) throw new Error("Failed");
         
         const data = await response.json();
         
@@ -29,32 +30,23 @@ export function useNiftyData() {
             change: data.change || "+125",
             changePercent: data.changePercent || "+0.52%",
             loading: false,
-            error: null,
           });
         }
       } catch (err) {
-        console.log("Nifty: Using fallback data");
+        // ✅ Silent fallback - app crash nahi karega
         if (isMounted) {
           setNifty({
             value: "24,500",
             change: "+125",
             changePercent: "+0.52%",
             loading: false,
-            error: null,
           });
         }
       }
     };
 
     fetchNifty();
-    
-    // Har 30 seconds mein refresh karo (optional)
-    const interval = setInterval(fetchNifty, 30000);
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    return () => { isMounted = false; };
   }, []);
 
   return { nifty };
