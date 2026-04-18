@@ -7,7 +7,7 @@ import { useNiftyData } from "../hooks/useNiftyData";
 import { TrendingUp, Home, PieChart, Shield, Wallet, Star, ArrowUpRight, ArrowDownRight, ChevronRight, User, X, LogOut, Palette, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-// ✅ TUMHARA GOOGLE SCRIPT URL (Hardcoded - turant kaam karega)
+// ✅ TUMHARA GOOGLE SCRIPT URL (Hardcoded - CORS + env var tension khatam)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxbQBH0UgP-thwCzJ1MRR7yeaTkkv9gKhxoJkRRurjz5fbUtQTe85wNwNBfT4j_xAgp/exec";
 
 // ✅ AuthForm Component (Login/Register)
@@ -29,10 +29,9 @@ function AuthForm({ isDark }) {
     e.preventDefault();
     setLoading(true);
     try {
-      // 🔥 CORS FIX: Content-Type text/plain use kar rahe hain
+      // 🔥 CORS FIX: No custom headers - Google Apps Script ke liye safest
       const response = await fetch(APPS_SCRIPT_URL, {
         method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ 
           action: isLogin ? "login" : "register", 
           userId, 
@@ -41,15 +40,7 @@ function AuthForm({ isDark }) {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status} ${response.statusText}`);
-      }
-
       const data = await response.json();
-
-      if (!data) {
-        throw new Error("Empty response from server");
-      }
 
       if (data.success) {
         if (isLogin) {
@@ -63,7 +54,6 @@ function AuthForm({ isDark }) {
         throw new Error(data.error || "Operation failed");
       }
     } catch (err) {
-      console.error("Auth error:", err);
       showToast(err.message || "❌ Connection failed", "error");
     } finally {
       setLoading(false);
